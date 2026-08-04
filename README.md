@@ -29,3 +29,15 @@ Skills in this repository are categorized below:
 | Skill | Description | Link |
 | :--- | :--- | :--- |
 | **`skill-evaluator`** | A meta-skill that combines multi-persona static analysis with empirical quantitative evaluation loops to critique, patch, and benchmark agent skills. | [Skill Folder](./skills/skill-evaluator/) |
+
+---
+
+### 🫃 Not My Skills
+
+These are external skills that I like, use, and build upon:
+
+| Skill | Description | Source |
+| :--- | :--- | :--- |
+| **`ce-code-review`** | Structured code review skill. Note: [`multi-agent-code-review`](./skills/multi-agent-code-review/) and [`skill-evaluator`](./skills/skill-evaluator/) are based on this one. | [Compound Engineering Plugin](https://github.com/EveryInc/compound-engineering-plugin) |
+| **`skill-creator`** | Skill for creating and refining agent skills. Note: [`skill-evaluator`](./skills/skill-evaluator/) is based on this one. | [Anthropic Skills](https://github.com/anthropics/skills/blob/main/skills/skill-creator) |
+| **`gh-address-comments`** | Helps address review and issue comments on open GitHub PRs using the GitHub CLI. | [GitHub CLI Skills](https://github.com/openai/skills/tree/main/skills/.curated/gh-address-comments) |
