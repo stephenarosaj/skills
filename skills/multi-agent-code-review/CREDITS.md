@@ -1,6 +1,8 @@
 ## Credits
 
-This is a modified and extended version of the [`ce-code-review`](httpshttps://github.com/EveryInc/compound-engineering-plugin/tree/main/skills/ce-code-review) Skill from the [Compound Engineering Plugin](https://github.com/EveryInc/compound-engineering-plugin), made by [EveryInc](https://every.to/)! The original Skill's [Source Code](https://github.com/EveryInc/compound-engineering-plugin/tree/4a47a2e0ae06aec412b8b242f3fc4d7ace9bf7da/skills/ce-code-review) was last accessed on `08-03-2026`.
+This is a modified and extended version of the **[`ce-code-review`](httpshttps://github.com/EveryInc/compound-engineering-plugin/tree/main/skills/ce-code-review)** Skill from the [Compound Engineering Plugin](https://github.com/EveryInc/compound-engineering-plugin), made by [EveryInc](https://every.to/)! 
+
+The original Skill's [Source Code](https://github.com/EveryInc/compound-engineering-plugin/tree/4a47a2e0ae06aec412b8b242f3fc4d7ace9bf7da/skills/ce-code-review) was last accessed and modified on `08-03-2026`.
 
 ## [Original License](https://github.com/EveryInc/compound-engineering-plugin/blob/4a47a2e0ae06aec412b8b242f3fc4d7ace9bf7da/LICENSE): MIT License
 
