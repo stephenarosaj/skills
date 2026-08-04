@@ -1,6 +1,6 @@
 ---
 name: skill-evaluator
-description: A meta-skill that combines the multi-persona static analysis of ce-code-review with the empirical quantitative evaluation loop of skill-creator. Use this to rigorously critique, rewrite, and empirically prove improvements to an existing skill.
+description: A meta-skill that combines the multi-persona static analysis of multi-agent-code-review with the empirical quantitative evaluation loop of skill-creator. Use this to rigorously critique, rewrite, and empirically prove improvements to an existing skill.
 ---
 
 # Skill Evaluator Protocol

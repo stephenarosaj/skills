@@ -18,6 +18,12 @@ Skills in this repository are categorized below:
 | :--- | :--- | :--- |
 | **`generate-pr-description`** | Generates clean, structured Pull Request descriptions with auto-synthesized titles, sparkle-prefixed overviews & highlights, and collapsible GFM changelogs split by implementation and test changes. | [Skill Folder](./skills/generate-pr-description/) |
 
+### 🔍 Code Review & Verification
+
+| Skill | Description | Link |
+| :--- | :--- | :--- |
+| **`multi-agent-code-review`** | Structured code review using tiered persona agents (17 personas including Blast Radius & Impact), confidence-gated findings, fuzzy plan/context requirements verification, and a merge/dedup pipeline. | [Skill Folder](./skills/multi-agent-code-review/) |
+
 ### 🛠️ Agent Context
 
 | Skill | Description | Link |
