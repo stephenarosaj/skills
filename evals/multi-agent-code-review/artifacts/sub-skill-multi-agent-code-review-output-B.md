@@ -445,6 +445,6 @@ with open(os.path.join(run_dir, "report.md"), "w") as f:
 print("Wrote report.md to", os.path.join(run_dir, "report.md"))
 ' "$RUN_DIR"`
 
-<!-- HERE, THE AGENT OUTPUT [`Sub-Skill Code Review Results 2.md`](./Sub-Skill%20Code%20Review%20Results%202.md) -->
+<!-- HERE, THE AGENT OUTPUT [`Sub-Skill Code Review Results B.md`](./Sub-Skill%20Code%20Review%20Results%20B.md) -->
 
 <!-- GOAL_COMPLETE -->

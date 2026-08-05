@@ -352,6 +352,6 @@ for fnd in res.get("findings", []):
 '`
 Viewed review-output-template.md:1-173
 
-\<!-- HERE, THE AGENT OUTPUT [`Code Review Results 2.md`](./Code%20Review%20Results%202.md) -->
+\<!-- HERE, THE AGENT OUTPUT [`Code Review Results B.md`](./Code%20Review%20Results%20B.md) -->
 
 <!-- GOAL_COMPLETE -->
