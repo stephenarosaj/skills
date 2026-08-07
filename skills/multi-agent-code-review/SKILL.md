@@ -121,352 +121,59 @@ Routing rules:
 - **Synthesis owns the final route.** Persona-provided routing metadata is input, not the last word.
 - **Choose the more conservative route on disagreement.** A merged finding may move from `gated_auto` to `manual`, but never widen without stronger evidence.
 - **Reject `safe_auto` and `review-fixer` if present** — drop the finding or remap to `gated_auto` / `downstream-resolver` during synthesis.
-- **`requires_verification: true` means any caller-applied fix needs targeted tests or follow-up validation.**
-
-## Reviewers
-
-Reviewer personas are selected in layers. The persona catalog in `references/persona-catalog.md` (read it at Stage 3) has the full selection criteria and spawn gates. Each selected reviewer is a generic subagent seeded with a local prompt file from `references/personas/`; do not dispatch standalone agents by type/name.
-
-This skill explicitly implements the 5 **Multi-Subagent Review Team** roles and empirical verification rules prescribed in `@agentic_workflow_best_practices.md`:
-- **Edge-Case Reviewer**: `correctness-reviewer`, `reliability-reviewer`, and `julik-frontend-races-reviewer` (boundary conditions, null/empty states, concurrency races).
-- **Test Completeness Reviewer**: `testing-reviewer` (enforces 100% changed-path coverage rule, Fail-First standalone reproduction tests for bug fixes, failure modes, and negative paths).
-- **Blast Radius / Impact Analyzer**: `blast-radius-reviewer` (checks if diff modifies files/abstractions outside required scope; identifies unprompted side-effects and cross-module coupling leaks).
-- **Security & Threat Model Auditor**: `security-reviewer` (CWE vulnerability scans, SQL/command/HTML injection risks, trust boundaries, auth bypasses).
-- **Architecture & Readability Reviewer**: `project-standards-reviewer` and `maintainability-reviewer` (enforces `@user_global` comment & documentation rules: `/** */` Javadocs for non-trivial function/field headers directed to general readers/users; sparing `//` inline comments for complex "why" rather than redundant "what"; repository style and design patterns).
-
-**Core (always-on):** `correctness-reviewer`.
-
-**Standards conditional:** `project-standards-reviewer` runs only when Stage 3b finds at least one applicable standards file (searching `CLAUDE.md`, `AGENTS.md`, and `./agents/` / `.agents/`). An empty successful search is a disclosed skip, because this persona is not allowed to invent standards beyond those files.
-
-**Generic conditional:**
-
-- `testing-reviewer` — test files, test infrastructure, mocks, fixtures, or harness behavior changed; or the diff changes meaningful runtime behavior without corresponding test work (enforces 100% path coverage & Fail-First repros).
-- `maintainability-reviewer` — a structural diff: substantial refactor, new abstractions, file moves, coupling/type-boundary changes, or architectural modifications **(no line-count threshold required)**.
-- `agent-native-reviewer` — an agent-facing feature or surface changed (skills, agents, prompts, tools, MCP, commands, or a product capability expected to be accessible to agents).
-- `learnings-researcher` — `<root>/solutions/` or knowledge base exists and a cheap path/title search finds a plausible match for the changed modules or patterns. The existence of a corpus alone is not enough.
-
-**Cross-cutting conditional (per diff):**
-
-- `security-reviewer` — auth, public endpoints, user input, permissions, CWE vulnerabilities, injection risks, auth bypasses
-- `performance-reviewer` — DB queries, data transforms, caching, async with material resource impact
-- `api-contract-reviewer` — routes, serializers, type signatures, versioning, public package signatures
-- `data-migration-reviewer` — migration files / schema dumps / backfills (see spawn gate in Stage 3), plus Record-and-Replay / behavioral equivalence verification
-- `reliability-reviewer` — error handling, retries, timeouts, background jobs, null/empty state resilience
-- `adversarial-reviewer` — >=50 changed code lines, or auth / payments / persistence writes / event publication / retry or concurrency semantics / external APIs, or a **silent-pass verification mechanism** regardless of size.
-- `previous-comments-reviewer` — PR with existing review comments (PR-only, comment-gated)
-- `blast-radius-reviewer` — **NEW** — Blast Radius / Impact Analyzer: checks for out-of-scope modifications, unprompted side-effects, cross-module coupling leaks, and transitive contract breakage
-
-**Stack-specific conditional (per diff):** `julik-frontend-races-reviewer` (Stimulus/Turbo, DOM events, async UI) and `swift-ios-reviewer` (Swift/SwiftUI/UIKit, entitlements, Core Data, `.pbxproj`).
-
-**CE conditional (migration-specific):** local prompt asset `deployment-verification-agent` — deployment checklist + rollback when the migration gate applies and the change is risky.
-
-## Review Scope
-
-A full review always spawns correctness, adds project-standards when applicable files exist, then adds only the generic, cross-cutting (including `blast-radius`), stack-specific, and CE conditionals justified by the diff. `depth:full` disables the small-diff lite path; it does not invent irrelevant domains.
-
-## Protected Artifacts
-
-Compound-engineering pipeline artifacts must never be flagged for deletion, removal, or gitignore by any reviewer. A protected artifact is any file **under** a `plans/`, `solutions/`, or legacy `brainstorms/` directory **whose immediate parent is the artifact root** — a directory named `docs` (the default, and where unmigrated legacy artifacts stay even after a project sets `docs_root`) or the configured `docs_root` when this run resolved it:
-
-- `plans/` under the artifact root -- unified plan artifacts created by ce-brainstorm or ce-plan (decision artifacts; execution progress is derived from git, not stored in plan bodies)
-- `solutions/` under the artifact root -- solution documents created during the pipeline (categories nest, e.g. `solutions/<category>/foo.md`)
-- the legacy `brainstorms/` -- requirements documents created by older ce-brainstorm versions
-
-Matching by the immediate parent covers nested category files while leaving a same-named directory elsewhere — a skill's own `references/personas/` prompt assets, parented by `references` — as ordinary code whose deletion finding stands. A run that never resolved a configured root still protects the `docs`-parented tree; a configured-root artifact seen by such a run is the one honest gap. Discard any such file's cleanup or removal finding during synthesis.
-
-## Plan Requirements Completeness
-
-When a plan is provided via `plan:<path>` or discovered from PR/branch context,
-classify readiness before checking completeness:
-
-- Unified artifact: metadata includes `artifact_contract: ce-unified-plan/v1`.
-  - `artifact_readiness: requirements-only` can inform product intent, but it
-    must not trigger implementation-unit completeness findings. Report that the
-    artifact was not implementation-ready if the diff appears to implement it.
-  - `artifact_readiness: implementation-ready` is eligible for full
-    requirements and U-ID completeness checks.
-  - Invalid progress-like readiness values (`active`, `in_progress`,
-    `completed`, `done`) are contract errors.
-- Legacy plan: use the existing completeness checks.
-
-Extract requirements from these shapes, in order:
-
-1. Unified `Product Contract` -> `### Requirements`
-2. Legacy top-level `## Requirements`
-3. Legacy `## Requirements Trace`
-
-For unified implementation-ready plans, also extract U-IDs from
-`## Implementation Units` and compare against PR body/branch context when
-available. Do not require every Product Contract R-ID to map one-to-one to a
-single U-ID; verify that implemented U-IDs cite the relevant R/F/AE/KTD IDs and
-that no claimed U-ID is missing from the plan.
-
-## How to Run
-
-### Stage 1: Determine scope
-
-Compute the diff range, file list, and diff. Minimize permission prompts by combining into as few commands as possible.
-
-**If `base:` argument is provided (fast path):**
-
-The caller already knows the diff base. Skip all base-branch detection, remote resolution, and merge-base computation. Use the provided value directly:
-
-```
-BASE_ARG="{base_arg}"
-BASE=$(git merge-base HEAD "$BASE_ARG" 2>/dev/null) || BASE="$BASE_ARG"
-```
-
-Then produce the same output as the other paths:
-
-```
-echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:" && git diff -U10 $BASE && echo "UNTRACKED:" && git ls-files --others --exclude-standard
-```
-
-This path works with any ref — a SHA, `origin/main`, a branch name. Callers reviewing the current checkout should pass explicit `base:` when auto-detection is unnecessary. **Do not combine `base:` with a PR number or branch target.** If both are present, stop with an error: "Cannot use `base:` with a PR number or branch target — `base:` implies the current checkout is already the correct branch. Pass `base:` alone, or pass the target alone and let scope detection resolve the base."
-
-**If a PR number or GitHub URL is provided as an argument:**
-
-Do **not** check out the PR branch. Scope comes from GitHub read APIs plus optional local alignment when HEAD already matches the PR head branch.
-
-**Skip-condition pre-check.** Before scope detection, run a PR-state probe:
-
-```
-gh pr view <number-or-url> --json state,title,body,files
-```
-
-Apply skip rules in order:
-
-- `state` is `CLOSED` or `MERGED` -> stop with reason `PR is closed/merged; not reviewing.`
-- **Trivial-PR judgment**: spawn a lightweight sub-agent on the platform's cheapest capable model when a known override exists; otherwise omit the model override and inherit. Give it the PR title, body, and changed file paths. The agent's task: "Is this an automated or trivial PR that does not warrant a code review? Consider: dependency lock-file or manifest-only bumps, automated release commits, chore version increments with no substantive code changes. When in doubt, answer no — false negatives (skipped reviews that should have run) are more costly than false positives (unnecessary reviews)." If the judgment returns yes: stop with reason `PR appears to be a trivial automated PR; not reviewing. Run without a PR argument to review the current branch, or pass base:<ref> if review is intended.`
-
-When any skip rule fires, stop without dispatching reviewers. **Default mode:** emit the reason as plain text. **`mode:agent`:** emit JSON only — `{"status":"skipped","reason":"<same message>"}` — so programmatic callers can parse the outcome.
-
-If no skip rule fires, fetch PR metadata **without checkout**:
-
-```
-gh pr view <number-or-url> --json title,body,baseRefName,headRefName,headRefOid,isCrossRepository,url,files,reviews,comments --jq '{title, body, baseRefName, headRefName, headRefOid, isCrossRepository, url, files: [.files[].path], hasPriorComments: ((.reviews | map(select(.state != "APPROVED" or .body != "")) | length) > 0 or (.comments | length) > 0)}'
-```
-
-If `gh pr view` or `gh pr diff` fails or returns malformed JSON, stop with an actionable error advising the user to check `gh auth status` or verify their GitHub CLI version — do not fall back to checkout.
-
-Set `BASE:` to `pr:<number-or-url>` (logical marker — not a git SHA). Set `UNTRACKED:` from `git ls-files --others --exclude-standard` on the **current** checkout (usually empty during PR-remote review).
-
-**PR scope mode.** Classify as **`local-aligned`** only when **all** of these hold; otherwise use **`pr-remote`**. A matching branch name alone is not enough — a fork PR or a stale local branch can share a name with the PR head while pointing at unrelated code, and trusting the name would diff and inspect the wrong tree.
-
-1. `git rev-parse --abbrev-ref HEAD` equals `headRefName`.
-2. The PR is **not** cross-repository (`isCrossRepository` is false).
-3. The PR head commit is contained in the local checkout: `git merge-base --is-ancestor <headRefOid> HEAD` exits 0. This confirms the working tree actually carries the PR head (allowing unpushed local fixes layered on top) rather than an unrelated same-named branch.
-
-- **`local-aligned`** — all three checks pass. Local Read/Grep/git blame against workspace files are valid for PR changed paths.
-- **`pr-remote`** — any check fails. The working tree is **not** the PR head; workspace file contents for changed paths may be stale or unrelated.
-
-**Diff by scope mode** (do not mix remote and local diffs — contradictory hunks cause false positives):
-
-- **`local-aligned`:** Resolve `<resolved-base-ref>` from `baseRefName` (fetch if needed). Compute `BASE=$(git merge-base HEAD <resolved-base-ref>)`, then set `FILES:` from `git diff --name-only $BASE` and `DIFF:` from `git diff -U10 $BASE` (includes committed, staged, and unstaged changes on the PR branch). Do **not** call `gh pr diff` or append remote hunks — when unpushed fixes exist, the local tree is canonical. Note in Coverage: `scope: local-aligned (PR; local tree diff)`.
-- **`pr-remote`:** Set `FILES:` from the PR `files` array. Set `DIFF:` from `gh pr diff <number-or-url> --color=never`. If `gh pr diff` fails, stop with an actionable error — do not fall back to checkout.
-
-When **`pr-remote`**, before Stage 4:
-
-1. Before executing `git fetch`, strictly validate `<number>` as numeric (`^[0-9]+$`) and `<headRefName>` against safe POSIX git ref character sets (`^[A-Za-z0-9_./-]+$`). If validation fails, skip fetch and rely on diff hunks only.
-2. Best-effort fetch PR head without checkout: `git fetch --no-tags origin <headRefName>:refs/review/pr-<number>-head` (substitute PR number from metadata).
-3. When fetch succeeds, set `PR_HEAD_REF=refs/review/pr-<number>-head` for reviewers and validators. When fetch fails, omit `PR_HEAD_REF` and note in Coverage — reviewers must rely on diff hunks only.
-4. Best-effort fetch the PR base without checkout: `git fetch --no-tags origin <baseRefName>`. When it succeeds, resolve a concrete ref with `git rev-parse FETCH_HEAD` and set `PR_BASE_REF` to that SHA — a **real git base ref** reviewers and validators use for file-level git diffs (e.g. `data-migration-reviewer` runs `git diff <PR_BASE_REF> -- db/schema.rb`/`structure.sql`). The `pr:<number-or-url>` logical marker in `BASE:` stays the scope marker; `PR_BASE_REF` is the diffable base. When the fetch fails, omit `PR_BASE_REF` and note in Coverage — schema-drift and other git-diff checks fall back to diff hunks only and must **not** assume `main`.
-5. Include `<pr-scope-mode>pr-remote</pr-scope-mode>` and, when set, `<pr-head-ref>...</pr-head-ref>` and `<pr-base-ref>...</pr-base-ref>` in the Stage 4 review context bundle.
-
-Reviewers and Stage 5b validators in **`pr-remote`** mode must **not** Read/Grep workspace paths for files in `FILES:`. Inspect via `git show <PR_HEAD_REF>:<path>` when `PR_HEAD_REF` is set, otherwise use only the provided diff hunks. **`local-aligned`** uses normal workspace inspection.
-
-**If a branch name is provided as an argument:**
-
-Substitute the provided branch name as `<branch>`. Do **not** check out `<branch>`.
-
-If `git rev-parse --abbrev-ref HEAD` equals `<branch>`, use the **standalone (current branch)** path below — same tree, explicit branch name; do not use remote-only diff.
-
-Otherwise diff the remote/local ref **without checkout**:
-
-1. Try `gh pr view <branch> --json baseRefName,url,headRefName` — if a PR exists, prefer the **PR number/URL path** above (same remote diff rules).
-2. Else resolve `<branch>` as `origin/<branch>` or `<branch>` after `git fetch --no-tags origin <branch>` when needed.
-3. Resolve default base branch (same logic as standalone). Compute `BASE=$(git merge-base <base-ref> <branch-ref>)` and `git diff -U10 $BASE <branch-ref>`.
-4. If `<branch-ref>` cannot be resolved locally, stop: "Cannot diff branch `<branch>` without checkout. Check out that branch, pass its open PR URL/number, or review the current branch with `base:`."
-
-On success for remote branch diff, set **branch-remote scope**. The working tree is **not** `<branch>`. Include `<pr-scope-mode>branch-remote</pr-scope-mode>` and `<branch-head-ref><branch-ref></branch-head-ref>` in the Stage 4 review context bundle. Reviewers and Stage 5b validators must **not** Read/Grep workspace paths for files in `FILES:`. Inspect via `git show <branch-ref>:<path>` or diff hunks only.
-
-Produce:
-
-```
-echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE <branch-ref> && echo "DIFF:" && git diff -U10 $BASE <branch-ref> && echo "UNTRACKED:" && git ls-files --others --exclude-standard
-```
-
-**If no argument (standalone on current branch):**
-
-Apply the same base-detection logic as branch mode above, using the current branch (i.e., `gh pr view --json baseRefName,url` with no argument defaults to the current branch).
-
-If no base can be resolved, **stop**. Do not fall back to `git diff HEAD` — a standalone review without the base would only show uncommitted changes and silently miss all committed work on the branch.
-
-On success, produce the diff:
-
-```
-echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:" && git diff -U10 $BASE && echo "UNTRACKED:" && git ls-files --others --exclude-standard
-```
-
-Using `git diff $BASE` (without `..HEAD`) diffs the merge-base against the working tree, which includes committed, staged, and unstaged changes together.
-
-**Untracked file handling:** Always inspect `UNTRACKED:`. Untracked paths are out of scope unless staged. When non-empty, list excluded files in Coverage and continue on tracked changes only — never stop or prompt.
-
-### Stage 1b: Compute scope signals (cheap, deterministic)
-
-Derive deterministic signals once with `scripts/review-scope.py` from this skill's directory. The helper owns endpoint validation, executable-line counting, changed-path signals, and the fail-closed lite eligibility calculation; do not reproduce those mechanics in prose or estimate them from diff hunks.
-
-Set `SCOPE_MODE` to the Stage 1 scope mode and set `DIFF_A`/`DIFF_B` to its two endpoints:
-- **`local-aligned` / standalone / `base:`** — `DIFF_A="$BASE"` (a real SHA/ref), `DIFF_B` empty (diffs base vs working tree).
-- **`pr-remote` / `branch-remote`** — `DIFF_A=<PR_BASE_REF>`, `DIFF_B=<PR_HEAD_REF>` (or `<branch-head-ref>`) — the fetched refs from Stage 1.
-
-```bash
-SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
-if [ -n "$PY" ]; then
-  if [ "$SCOPE_MODE" = "pr-remote" ] || [ "$SCOPE_MODE" = "branch-remote" ]; then
-    "$PY" "$SKILL_DIR/scripts/review-scope.py" --base "${DIFF_A:-}" --head "${DIFF_B:-}" --docs-root "<root>";
-  else
-    "$PY" "$SKILL_DIR/scripts/review-scope.py" --base "$DIFF_A" --docs-root "<root>";
-  fi
-else
-  echo '{"exec_lines":null,"uncounted_files":1,"signals":{"test_files_changed":true,"agent_surface":true,"has_learnings_corpus":true}}'
-fi
-```
-
-Remote scope always passes both endpoint flags, even when a best-effort fetch left one value empty; the helper then fails closed instead of comparing the fetched base to the unrelated local worktree. Load the JSON result. `exec_lines: null`, any `uncounted_files > 0`, or helper failure disqualifies the lite path. `signals` are path heuristics, not selection decisions. Stage 3 still judges content-based risk such as auth, payments, mutation, external I/O, concurrency, and process execution. Use `test_files_changed`, `agent_surface`, and `has_learnings_corpus` as inputs to the generic reviewer gates, not as automatic spawn decisions.
-
-### Stage 2: Intent discovery
-
-Understand what the change is trying to accomplish. The source of intent depends on which Stage 1 path was taken:
-
-**PR/URL mode:** Use the PR title, body, and linked issues from `gh pr view` metadata. Supplement with commit messages from the PR if the body is sparse.
-
-**Branch mode:** Run `git log --oneline ${BASE}..<branch-ref>` using the resolved merge-base and resolved branch ref from Stage 1. Use `<branch-ref>` (the resolved `origin/<branch>` or fetched ref), not the raw `<branch>` argument — a remote-only branch has no matching local ref, so the raw name would fail or read a stale same-named local branch.
-
-**Standalone (current branch):** Run:
-
-```
-echo "BRANCH:" && git rev-parse --abbrev-ref HEAD && echo "COMMITS:" && git log --oneline ${BASE}..HEAD
-```
-
-Combined with conversation context (plan section summary, PR description), write a 2-3 line intent summary:
-
-```
-Intent: Simplify tax calculation by replacing the multi-tier rate lookup
-with a flat-rate computation. Must not regress edge cases in tax-exempt handling.
-```
-
-Pass this to every reviewer in their spawn prompt. Intent shapes *how hard each reviewer looks*, not which reviewers are selected. Keep any `session-settled:` annotations (from a plan or the conversation) out of this summary — reviewers stay blind to settlement (Stage 2b).
-
-**When intent is ambiguous:** Infer from branch name, commits, PR title/body, diff, `plan:`, and conversation. Write the best-effort intent summary and note uncertainty in Coverage — never block on a clarifying question.
-
-### Stage 2b: Plan & Context Discovery (user-specified docs only)
-
-Locate the design document, implementation plan, brief, or requirements specification **only when explicitly specified by the user**:
-
-1. **`plan:` argument.** If the caller passed an explicit path (`plan:<path>`), use it directly. Read the file to confirm it exists (`plan_source: explicit`).
-2. **Explicitly Designated In-Context Document.** If the user explicitly referenced, attached, or designated a design document, implementation plan, or brief in their invocation prompt as the plan to verify against, use it (`plan_source: user-specified context doc`).
-3. **Do not automatically scrape or auto-discover.** If the user did not specify a plan via `plan:` or an explicit reference, **do not automatically scrape random documents found in context or search disk paths**. Requirements verification is additive and only runs against user-specified specifications.
-
-When a plan *is* specified by the user, quickly call out in the Stage 3 team announcement that requirements are being verified against that specified document (e.g., `> [!NOTE] Verifying requirements against specified plan: docs/plans/feat-foo.md`). If no plan was specified, do not call out its absence.
-
-If a specified plan is found, read its **Requirements** section and **Implementation Units** (numeric subsections or task items). Store the extracted requirements list and `plan_source` for Stage 6.
-
-When the specified source of truth carries approved design decisions or Key Technical Decisions (whether explicitly marked with `session-settled:` or clearly stated as an approved design decision), extract each labeled decision and rejected alternative for your own use in Stage 5 triage (step 6c). Settlement annotations are **orchestrator-only context**: exclude them from the Stage 2 intent summary and from every reviewer bundle. Reviewer independence is the point: lenses must stay free to re-derive the rejected alternative on the merits; the orchestrator triages settlement conflicts post-hoc.
-
-### Stage 2c: Keep grounding review-specific
-
-Use the project's active instructions already in context plus the current diff and source. Give each reviewer only the task-relevant context for its lens; the `project-standards` reviewer reads the actual standards sources. If a reviewer cannot scope the affected area from the diff and supplied context, allow one targeted probe.
-
-In `pr-remote` / `branch-remote`, current source and any targeted probe must use `git show` against the supplied reviewed head ref, or the supplied diff hunks when no head ref is available; never inspect workspace paths.
-
-### Stage 3: Select reviewers
-
-Read the diff and file list from Stage 1 and the helper JSON from Stage 1b. Correctness is automatic; project-standards is governed by the Stage 3b path result. Read `references/persona-catalog.md` from this skill's directory now; it owns every other spawn gate. Select generic reviewers before domain reviewers: testing for changed test/harness surfaces, or when meaningful runtime behavior changed without corresponding test work; maintainability only for large or structural work; agent-native only for agent-facing work; and learnings only after a cheap search finds plausible matches in an existing `<root>/solutions/` corpus. For the behavioral testing trigger, require concrete diff evidence such as new or changed branches, state mutation, API/control-flow behavior, or error handling. Do not select testing from production-file presence alone or for non-behavioral edits. For each remaining conditional, decide whether the diff warrants it. Helper signals are prompts to consider a persona, never automatic selection.
-
-**File-type awareness for conditional selection:** Instruction-prose files (Markdown skill definitions, JSON schemas, config files) are product code but do not benefit from runtime-focused reviewers. The adversarial reviewer's techniques (race conditions, cascade failures, abuse cases) target executable code behavior. For diffs that only change instruction-prose files, skip adversarial unless the prose describes auth, payment, or data-mutation behavior, or the change is itself a silent-pass verification mechanism (next paragraph — a CI/CD workflow is a config file but still gets the adversarial lens). Count only executable code lines toward line-count thresholds.
-
-Treat changed persistence writes, event publication, retry/partial-failure behavior, and concurrency or ordering semantics as concrete data-mutation/external-boundary triggers for `adversarial`; do not require a framework-specific database or HTTP keyword.
-
-**Silent-pass verification mechanisms — adversarial fires on the guard itself.** When the change *is* a verification mechanism — CI/CD gating logic, merge-blocking checks, build/deploy steps, coverage/lint gates, or test infrastructure/mocks that could mask production — its risk isn't blast radius, it's fidelity: it can go green while the real thing is red, so the exact "can this false-pass?" lens must run. Select `adversarial` for such a change regardless of changed-line count and independent of the auth/data heuristics. The selection question: "If this mechanism is wrong, does it fail loudly or silently pass? A silent-pass guard gets the adversarial lens regardless of size." Scope guard: this fires on the *mechanism* (gating/CI/build/deploy/harness changes), not on ordinary per-feature test assertions — a unit test asserting business logic is the `testing` reviewer's job, not adversarial's.
-
-**`previous-comments` is PR-only AND comment-gated.** Only select this persona when both conditions hold:
-
-1. Stage 1 gathered PR metadata (PR number or URL was provided as an argument, or `gh pr view` returned metadata for the current branch).
-2. `hasPriorComments` from Stage 1 is true (the PR has at least one review submission or issue comment).
-
-Skip it for standalone branch reviews with no associated PR, and skip it for PRs with no prior feedback yet -- there is nothing for the persona to verify, and a spawned subagent that returns empty findings still costs the full subagent startup overhead (persona spec, diff, schema, plus its own gh calls).
-
-Stack-specific personas are additive when runtime behavior warrants them. A Hotwire UI change may warrant `julik-frontend-races`; a TypeScript boundary change may warrant `api-contract` only when the diff changes an externally consumed contract, not merely because it exports a symbol.
-
-**`data-migration` spawn gate.** Select `data-migration-reviewer` only when the diff includes at least one migration or schema artifact: `db/migrate/*`, `db/schema.rb`, `db/structure.sql`, Alembic/Flyway/Liquibase migration paths, or explicit backfill/data-transform scripts (rake tasks, one-off data migration classes). **Do not spawn** for model-only changes, query-only refactors, serializers/controllers that reference columns without a migration or schema dump in the diff, or migration tests alone.
-
-For `deployment-verification-agent`, use the same migration-artifact gate when the change is risky (destructive DDL, backfills, NOT NULL without default, column renames/drops).
-
-### Stage 3b: Discover project standards paths
-
-Before spawning sub-agents, find the file paths (not contents) of all relevant standards files for the `project-standards` persona. Use the native file-search/glob tool to locate:
-
-1. Use the native file-search tool (e.g., Glob in Claude Code) to find all `**/CLAUDE.md`, `**/AGENTS.md`, and any agent instruction/rule markdown files inside `./agents/` and `.agents/` (e.g. `.agents/rules/*.md`, `.agents/*.md`, `./agents/*.md`, etc.) in the repo.
-2. Filter to those whose directory is an ancestor of at least one changed file, or global repository-level agent instruction files in `.agents/` / `./agents/`. A standards file governs all files below it (e.g., `AGENTS.md` at the repo root applies to the whole checkout, while `skills/AGENTS.md` would apply to everything under `skills/`).
-
-Distinguish an empty successful search from a failed or unavailable search:
-
-- One or more applicable paths: select `project-standards` and pass the path list inside a `<standards-paths>` block in its Stage 4 context. The persona reads the files itself, targeting only relevant sections.
-- Empty successful search: do not dispatch `project-standards`; record `project standards: not run (no applicable standards files)` in Coverage.
-- Search failure or uncertain scope: fail closed by dispatching `project-standards` with the uncertainty stated; never treat an error as an empty result.
-
-### Stage 3c: Small-diff fast path (reduce the roster for trivial, low-risk diffs)
-
-**`depth:full` hard-disables this gate** — when that token was passed, skip Stage 3c entirely and run the full roster (the caller explicitly asked for a deep review; size no longer matters).
-
-**This gate fails closed: it only ever fires for a positive count of low-risk application code, and every uncertainty resolves to the full roster.** Collapse to a lite roster only when **all** of these hold:
-
-- Stage 1b returned `lite_eligible: true` (1-39 executable changed lines, zero uncounted files, and no path signals), AND
-- No content-based risk read from the diff in Stage 3 (auth, payments, data mutation, external API, secrets/permissions, deserialization, crypto, concurrency/background jobs, filesystem/process execution), AND
-- Stage 3b standards discovery completed successfully (with applicable paths or a confirmed empty result), AND
-- No conditional persona other than `project-standards` was selected in Stage 3.
-
-`exec_lines: null`, `uncounted_files > 0`, a non-empty `signals` array, or helper failure are hard disqualifiers. A pure code diff that also touches one `.md` runs the full roster; that conservatism is the point.
-
-**Lite roster:** the inline fast pass (Stage 4) plus `correctness-reviewer`, and `project-standards-reviewer` only when Stage 3b found applicable paths. Announce the actual roster plainly and note it in Coverage.
-
-**Do not collapse** when any gate condition fails — the gate keys on risk, not size alone (a 12-line auth change still needs the full roster). When in doubt, run the full roster.
-
-### Stage 3d: Materialize final roster and run directory
-
-Complete this stage **before reading persona prompt assets or entering Stage 4**.
-
-Generate the review run ID now so both routes share one artifact directory:
-
-```bash
-SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
-if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
-(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
-if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
-chmod 700 "$SCRATCH_ROOT" || exit 1;
-RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ');
-RUN_DIR="$SCRATCH_ROOT/multi-agent-code-review/$RUN_ID";
-(umask 077; mkdir -p "$RUN_DIR") || exit 1; chmod 700 "$RUN_DIR" || exit 1;
-echo "$RUN_DIR";
-```
-
-Do not proceed until the final local roster is materialized.
-
-Announce that final team before spawning, as a user-facing summary: name the always-on reviewers plainly, and for each conditional reviewer give the one-line reason it was added (the real concern, not the keyword that matched). Do **not** put local reviewer model-tier labels (`[session model]`/`[mid-tier]`) or scope-mode codenames in this announce — those are internal. Still decide each local reviewer's tier here and keep it in working state for Stage 4. This is progress reporting, not a blocking confirmation.
-
-### Stage 4: Dispatch and collect reviewers
-
-Only after Stage 3d has materialized the final local roster, read `references/dispatch-reviewers.md` from this skill's directory in full. It owns the inline fast pass, local model tiers, shared-context staging, persona dispatch contract, bounded concurrency, and reviewer collection.
-
-### Stage 5: Finish the review
-
-After all reviewer returns are ready, read `references/finish-review.md` from this skill's directory in full. Follow it to merge and mechanically validate findings, run the bounded validation pass, apply only when explicitly authorized, and render the final report. This load is mandatory; do not improvise a shorter synthesis path.
-
-## Language-Aware Conditionals
-
-Stack-specific reviewers fire only when the diff touches runtime behavior they specialize in (async UI races, iOS/Swift lifecycle) — never mechanically from file extensions alone; the trigger is meaningful changed behavior in that stack's runtime domain. Structural quality (complexity deletion, 1k-line regressions, type-boundary leaks) lives in the conditional `maintainability-reviewer`; do not spawn extra reviewers for language conventions, philosophy, or "strict bar" passes.
+- **`requires_verification: true` means any caller-applied fix needs targeted tests or ## Reviewers & Scope
+
+Reviewer personas are selected in layers from `references/persona-catalog.md`:
+- **Edge-Case Reviewer**: `correctness-reviewer`, `reliability-reviewer`, `julik-frontend-races-reviewer`.
+- **Test Completeness Reviewer**: `testing-reviewer` (enforces 100% changed-path coverage & Fail-First standalone repros).
+- **Blast Radius / Impact Analyzer**: `blast-radius-reviewer` (checks for out-of-scope modifications & cross-module coupling leaks).
+- **Security & Threat Model Auditor**: `security-reviewer` (CWE vulnerability scans, injection risks, auth bypasses).
+- **Architecture & Readability Reviewer**: `project-standards-reviewer`, `maintainability-reviewer` (enforces `@user_global` Javadoc/inline comment rules).
+
+For full reviewer selection rules, conditional spawn gates, protected artifact rules, and plan requirements completeness checks, read `references/roster-selection.md` and `references/intent-and-plan.md`.
+
+## How to Run (Orchestration Spine)
+
+Execute the code review workflow sequentially across these 6 stages. Read each reference file on demand at the stage that requires it:
+
+### Stage 1 & 1b: Resolve Scope & Diff Signals
+Read `references/scope-resolution.md`. Follow its rules to:
+- Resolve diff base (`base:<ref>` fast path, PR number/URL, branch, or standalone working tree).
+- Execute the PR-state probe and trivial-PR judgment skip check.
+- Sanitize PR remote ref names (`headRefName`) before calling `git fetch`.
+- Compute deterministic line and signal metrics using `scripts/review-scope.py` (with automatic shell fallback if Python 3 is absent).
+
+### Stage 2, 2b & 2c: Discover Intent & Plan
+Read `references/intent-and-plan.md`. Follow its rules to:
+- Write a 2–3 line intent summary from PR/branch metadata and commits.
+- Discover design documents or implementation plans **only when explicitly specified by the user** (`plan:<path>` or user-specified context doc). Do not auto-scrape random docs.
+- Extract approved Key Technical Decisions (KTDs) for Stage 5 triage while isolating reviewers from settlement annotations.
+
+### Stage 3, 3b, 3c & 3d: Select Reviewers & Stage Run Dir
+Read `references/roster-selection.md` and `references/persona-catalog.md`. Follow their rules to:
+- Select the active reviewer team (generic before domain reviewers).
+- Discover applicable project standards files (`CLAUDE.md`, `AGENTS.md`, `./agents/*.md`, `.agents/*.md`) for `project-standards-reviewer`.
+- Evaluate the small-diff fast path (`lite_eligible` roster for trivial low-risk application code diffs).
+- Create the temporary scratch run directory (`RUN_DIR`) and announce the team to the user.
+
+### Stage 4: Dispatch and Collect Reviewers
+Read `references/dispatch-reviewers.md`. Follow its rules to:
+- Execute the inline fast pass for trivial code-level checks.
+- Assign local model tiers (session tier for `correctness`/`security`/`adversarial`; mid-tier for others).
+- Emit a progress alert in non-tracking UI environments.
+- Dispatch selected reviewer subagents as a bounded foreground concurrent batch and collect all compact JSON results.
+
+### Stage 5: Finish the Review (Merge, Validate & Apply)
+Read `references/finish-review.md`. Follow its rules to:
+- Merge and mechanically deduplicate findings across reviewers.
+- Execute Stage 5b validator batching (chunked into batches of 6 max per batch when surviving P0/P1 blockers exceed 8).
+- Execute Stage 5c explicit local apply only when authorized by `apply:local`.
+
+### Stage 6: Synthesize & Present Report
+Read `references/review-output-template.md` and follow Stage 6 in `references/finish-review.md` to:
+- Render the final report (markdown in default mode; raw JSON in `mode:agent`).
+- Ensure any surviving P0 or P1 `validation-degraded` finding forces a `"Not ready"` verdict.
+- Always surface P0/P1 plan deviations in a dedicated `### Plan Deviations & Settled Decision Conflicts` section.
 
 ## After Review
 
@@ -532,6 +239,9 @@ Every reference lives in this skill's directory and loads **on demand at the sta
 | Reference | Load at | Purpose |
 |-----------|---------|---------|
 | `references/invocation-arguments.md` | Setup / Argument Parsing | Full argument token definitions, examples, and conflicting-argument rules |
+| `references/scope-resolution.md` | Stage 1 & 1b | Diff endpoint resolution, PR probes, remote ref sanitization, and scope signals |
+| `references/intent-and-plan.md` | Stage 2, 2b & 2c | Intent summary, user-specified plan discovery, and KTD extraction |
+| `references/roster-selection.md` | Stage 3, 3b, 3c & 3d | Persona selection rules, standards discovery, small-diff lite path, and run dir staging |
 | `references/persona-catalog.md` | Stage 3 | Full per-persona selection criteria and spawn gates |
 | `references/dispatch-reviewers.md` | Stage 4 | Inline fast pass, model tiers, persona dispatch contract, and collection |
 | `references/subagent-template.md` | Stage 4 via dispatch protocol | Dispatch shape for every persona subagent |
