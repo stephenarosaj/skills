@@ -18,3 +18,4 @@ Scan the target `SKILL.md` for the following heuristics to determine if these pe
 - `api-contract-reviewer`: Activate if the skill instructs usage of external APIs or MCPs.
 - `reliability-reviewer`: Activate if the skill has more than 3 distinct execution steps.
 - `adversarial-reviewer`: Activate if the skill is >100 lines long or contains execution loops.
+- `execution-spine-reviewer`: Activate if the skill coordinates subagents, acts as an orchestrator, or attempts to implement a multi-stage workflow.
