@@ -1,13 +1,14 @@
 ---
 name: discover-tools
-description: Analyzes a research goal to autonomously discover and select the most authoritative web sources, frameworks, internal tools, and APIs required to execute the research.
+description: "Analyzes a research goal to autonomously discover and select the most authoritative web sources, frameworks, internal tools, and APIs required to execute the research."
+argument-hint: "[Research Goal] [Context/Domain] [Known Resources (Optional)]"
 ---
 # Tool Discovery & Selection Strategist
 
 This skill is designed to analyze a specific research goal and actively discover the most authoritative sources, tools, frameworks, and APIs needed to accomplish it. It moves beyond merely selecting from a predefined list, actively formulating strategies to find the best available resources.
 
-## 🎯 Objective
-Given a research goal and its context, identify and compile a comprehensive list of tools, authoritative web domains, internal APIs, and search queries that will be most effective in gathering required evidence and insights.
+## Objective
+Given a research goal and its context, identify and compile a comprehensive list of tools, authoritative web domains, internal APIs, and/or search queries that will be most effective in gathering required evidence and insights.
 
 ## 📥 Inputs
 When invoking this skill, you must provide:
@@ -27,6 +28,8 @@ When invoking this skill, you must provide:
    - **Academic/Research**: Google Scholar, arXiv, ResearchGate.
    - **Community/Practical**: StackOverflow, GitHub issues, specialized forums, Reddit (for sentiment/issues).
    - **Internal/Proprietary**: (If applicable) internal code search (`code_search`), internal wikis (`moma_search`), specialized internal tools.
+   - **Current News**: Google News, trusted journals or news outlets covering the topic, etc.
+   - **Your Own Suggestions**: If you believe other sources would be valuable, include them in the list.
 
 3. **Active Discovery Strategy (The "How-To-Find")**:
    If the specific authoritative sources are not immediately known, formulate a plan to find them:

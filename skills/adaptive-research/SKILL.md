@@ -1,6 +1,6 @@
 ---
 name: adaptive-research
-description: A general-purpose, entry-point orchestrator skill for researching any topic by dynamically generating specialized subagent personas, coordinating parallel research execution, and synthesizing verifiable evidence.
+description: "A general-purpose, entry-point orchestrator skill for researching any topic by dynamically generating specialized subagent personas, coordinating parallel research execution, and synthesizing verifiable evidence."
 ---
 
 # Adaptive Research Orchestrator
@@ -37,16 +37,22 @@ Follow these steps precisely:
 ### 4. Parallel Subagent Dispatch (Execution)
 *   **Invoke Subagents:** Use the `invoke_subagent` tool to launch the specialized subagents simultaneously.
 *   **Provide Instructions:** Pass the generated personas and their specific tasks and tools as prompts to the subagents.
-*   **Enforce Standards:** Instruct the subagents to natively inline citations (e.g., Markdown links) within their analytical findings and to report back using a structured JSON schema (as defined by the Evidence & JSON Schema Modeler).
+*   **Enforce Process and Standards:** Instruct the subagents to follow the [`focused-research`](./sub-skills/focused-research_SKILL.md) sub-skill to conduct their research. This sub-skill guarantees they natively inline citations (e.g., Markdown links) within their analytical findings and report back using a structured JSON schema.
 
-### 5. Structured Synthesis
+### 5. Structured Synthesis & Conclusiveness Check
 *   **Collect Outputs:** Wait for all dispatched subagents to complete their tasks and report back.
 *   **Parse Structured Data:** Extract the findings, certainty levels, open questions, and cited sources from the subagents' JSON reports.
-*   **Synthesize Final Report:** Combine the findings into a comprehensive research report.
-*   **Verify Evidence:** Ensure all claims in the final report are backed by the inlined evidence provided by the subagents. Prevent hallucinations by strictly adhering to the subagents' verified findings.
-*   **Deliver to User:** Present the synthesized report to the user, highlighting key insights and any remaining open questions.
+*   **Synthesize & Verify:** Combine the findings into a comprehensive research report. Ensure all claims are backed by inlined evidence.
+*   **Evaluate Conclusiveness:** Determine if the research yielded a single definitive answer, or if it uncovered competing hypotheses / multiple viable solutions.
+    *   *If Conclusive:* Deliver the final synthesized report to the user.
+    *   *If Competing Options Exist:* Format a comparative **Decision Matrix** outlining the trade-offs of each option. Pause the workflow and present actionable next steps to the user:
+        1.  **Iterate & Deepen:** Offer to spin up a new, narrower set of subagents to specifically research the differences between the competing options.
+        2.  **Transition to Testing/POC:** Suggest handing off the findings to a different skill (e.g., a POC generator or empirical evaluator) to test the hypotheses.
+        3.  **User Decision:** Ask the user to review the matrix and make a manual decision on which path to take.
 
 ## Guidelines
-*   **Modularity:** Rely on your sub-skills (`generate-persona`, `discover-tools`, etc.) for specialized tasks when available.
+*   **Sequential but Overlapping:** The steps above must be followed in sequence.
+*   **Modularity:** Rely on your sub-skills (`generate-persona`, `discover-tools`, etc.) for specialized tasks.
 *   **Parallelism:** Maximize efficiency by dispatching subagents in parallel for independent research tasks.
 *   **Verifiability:** Never invent information. All synthesized findings must trace back to the structured evidence provided by the subagents.
+    * If you cannot verify it, do not write it. Instead, add it to the open questions list - and consider if you need to dispatch additional subagents to investigate further.    
