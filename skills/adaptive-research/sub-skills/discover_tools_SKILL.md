@@ -43,32 +43,72 @@ When invoking this skill, you must provide:
 
 Return a structured JSON object containing the discovery plan. This object will be passed to the Persona Architect to equip the research subagents.
 
+### Output Schema
+
 ```json
 {
-  "research_goal": "...",
-  "recommended_agent_tools": [
-    {
-      "tool_name": "search_web",
-      "purpose": "To discover current benchmarks."
-    }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Discovery Plan",
+  "description": "Structured output schema defining the source and tool strategy for research subagents.",
+  "type": "object",
+  "required": [
+    "research_goal",
+    "recommended_agent_tools",
+    "authoritative_sources",
+    "discovery_queries"
   ],
-  "authoritative_sources": [
-    {
-      "source_type": "official_documentation",
-      "target_urls_or_domains": ["react.dev", "nextjs.org/docs"],
-      "justification": "Primary source for truth on framework capabilities."
+  "properties": {
+    "research_goal": {
+      "type": "string",
+      "description": "The synthesized core objective of the research task."
+    },
+    "recommended_agent_tools": {
+      "type": "array",
+      "description": "List of actual system tools (e.g., 'search_web', 'read_url_content', 'grep_search') the subagent must be equipped with to access the identified sources.",
+      "items": {
+        "type": "object",
+        "required": ["tool_name", "purpose"],
+        "properties": {
+          "tool_name": {
+            "type": "string",
+            "description": "Exact name of the tool."
+          },
+          "purpose": {
+            "type": "string",
+            "description": "Why this tool is necessary for this specific research goal."
+          }
+        }
+      }
+    },
+    "authoritative_sources": {
+      "type": "array",
+      "description": "Specific domains, files, or platforms that the subagents should prioritize or restrict their searches to. This prevents lazy searching and bounds the subagents to high-signal targets.",
+      "items": {
+        "type": "object",
+        "required": ["sources", "source_type", "justification"],
+        "properties": {
+          "sources": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Specific URLs, domains (e.g., 'react.dev'), absolute file paths, etc."
+          },
+          "source_type": {
+            "type": "string",
+            "description": "Category of the source (e.g., 'official documentation', 'research paper', 'internal design document', etc.)."
+          },
+          "justification": {
+            "type": "string",
+            "description": "Why these sources are considered useful for this goal."
+          }
+        }
+      }
+    },
+    "discovery_queries": {
+      "type": "array",
+      "description": "Pre-computed, highly specific search queries (e.g., 'site:github.com nextjs memory leak') designed to jump-start the subagents' investigation and save token cycles.",
+      "items": { "type": "string" }
     }
-  ],
-  "discovery_queries": [
-    "advanced React rendering optimization techniques 2024",
-    "site:github.com nextjs memory leak issues"
-  ],
-  "internal_tools_needed": [
-    {
-      "tool_name": "moma_search",
-      "query_hints": ["frontend performance guidelines"]
-    }
-  ]
+  }
 }
 ```
 

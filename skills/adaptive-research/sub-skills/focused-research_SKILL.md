@@ -21,32 +21,16 @@ As you synthesize your findings, you must annotate every claim with traceable ev
 - **Example (Local):** `The schema is defined in [schema.prisma](file:///src/db/schema.prisma).`
 
 ## 3. Structured JSON Schema Output
-Do not output conversational paragraphs or unstructured markdown as your final deliverable. You must conclude your task by outputting a **single JSON object** that complies with the orchestrator's evidence schema:
+Do not output conversational paragraphs or unstructured markdown as your final deliverable. You must conclude your task by outputting a **single JSON object** that strictly validates against the formal schema defined in:
 
-```json
-{
-  "research_goal": "Your assigned goal...",
-  "findings": [
-    {
-      "claim": "Concise statement of the finding.",
-      "details": "Detailed explanation. MUST contain inlined Markdown citations.",
-      "certainty": "High" // (High, Medium, Low)
-    }
-  ],
-  "overall_certainty": "High", // (High, Medium, Low)
-  "open_questions": [
-    "What couldn't you find or verify?"
-  ],
-  "cited_sources": [
-    {
-      "id": "1",
-      "title": "Document Title",
-      "url_or_path": "https://... or file://...",
-      "reliability": "Primary" // (Authoritative, Primary, Secondary, Questionable)
-    }
-  ]
-}
-```
+[`../references/evidence_schema.md`](file:///Users/stephenarosaj/jd/00-09%20-%20Personal/00%20-%20Code/00.01%20AI/skills/skills/adaptive-research/references/evidence_schema.md)
+
+**Mandatory Fields Checklist before submission:**
+1. Did you include the `research_goal`?
+2. Are all items in `findings` populated with `claim`, `details` (with inlined markdown citations), and `certainty`?
+3. Did you assign an `overall_certainty`?
+4. Are there any `open_questions` listed?
+5. Are all sources used cited properly in the `cited_sources` array with an `id`, `title`, `url_or_path`, and `reliability`?
 
 ## 4. Final Submission
 1. Review your JSON to ensure every `claim` in `findings` has corresponding inlined citations in the `details` field.
