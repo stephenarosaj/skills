@@ -23,7 +23,9 @@ As you synthesize your findings, you must annotate every claim with traceable ev
 ## 3. Structured JSON Schema Output
 Do not output conversational paragraphs or unstructured markdown as your final deliverable. You must conclude your task by outputting a **single JSON object** that strictly validates against the formal schema defined in:
 
-[`../references/evidence_schema.md`](file:///Users/stephenarosaj/jd/00-09%20-%20Personal/00%20-%20Code/00.01%20AI/skills/skills/adaptive-research/references/evidence_schema.md)
+[`evidence_schema.md`](evidence_schema.md)
+
+(Note: You can read `evidence_schema.md` from the same directory as this file to see the required JSON schema.)
 
 **Mandatory Fields Checklist before submission:**
 1. Did you include the `research_goal`?

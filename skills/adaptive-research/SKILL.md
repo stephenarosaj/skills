@@ -13,46 +13,38 @@ Some examples of topics / domains / goals to research:
 *   Researching how to approach a problem (ex: how can i test and debug a distributed system?)
 *   Researching the current state of a domain (ex: what are the current trends in AI research? or how are markets reacting to this recent policy change?)
 
-## Workflow Sequence
+## Action Routing
 
-Follow these steps precisely:
+Follow these boundaries in order; reference files supply the detail but never change the order. 
+**Lazy-Loading Rule:** Do NOT `@`-inline reference files. Read them from the `references/` directory *only* when you reach the corresponding stage. The `references/` directory is located in the exact same directory as this `SKILL.md` file you are currently reading.
 
-### 1. Goal & Methodology Discovery
+### Stage 1: Goal & Methodology Discovery
 *   **Analyze the Request:** Understand the core objective, scope, and specific questions the user wants answered.
-*   **Determine Methodology:** Work with the user to define the research methodology.
-    *   What kind of analysis is needed? 
-    *   What are the key areas of focus? 
-*   **Draft Initial Plan:** Outline the research plan and the necessary sub-tasks. Ask the user clarifying questions if needed. 
+*   **Determine Methodology:** Work with the user to define the research methodology (What kind of analysis is needed? What are the key areas of focus?).
+*   **Draft Initial Plan:** Outline the research plan and necessary sub-tasks. Ask the user clarifying questions if needed.
 
-### 2. Persona Generation
-*   **Design Roster:** Determine the specialized roles (personas) needed to execute the research plan in parallel. Each persona should be designed to investigate a specific aspect of the research plan, or to provide a specific perspective, etc.
-*   **Generate Personas:** For each role, use the [`generate-persona`](./sub-skills/generate_persona_SKILL.md) sub-skill (or follow its principles) to create a constrained, high-fidelity system prompt.
-*   **Assign Scope:** Ensure each persona has a clear goal, a specific scope of work, and access to a the tools necessary to fulfill its role, as defined in Step 2.
+### Stage 2: Persona Generation
+Before executing this stage, read `references/generate-persona.md`.
+*   **Design Roster:** Determine the specialized roles (personas) needed to execute the research plan in parallel. 
+*   **Generate Personas:** For each role, follow the framework in `generate-persona.md` to create a constrained, high-fidelity system prompt.
+*   **Assign Scope:** Ensure each persona has a clear goal, a specific scope of work, and access to necessary tools.
 
-### 3. Tool Discovery & Selection
-*   **Identify Needs:** Based on the research plan and personas generated, what tools and data sources are required?
-*   **Discover Tools:** Independently discover authoritative sources, documentation, or relevant internal/external APIs for the given topic using the [`discover-tools`](./sub-skills/discover_tools_SKILL.md) sub-skill, and/or manual search.
-*   **Select Tools:** Finalize the toolset and ensure each persona has access to the tools it needs to fulfill its role, as defined in Step 2.
+### Stage 3: Tool Discovery & Selection
+Before executing this stage, read `references/discover-tools.md`.
+*   **Identify Needs:** Based on the research plan, what tools and data sources are required?
+*   **Discover Tools:** Follow the instructions in `discover-tools.md` to independently discover authoritative sources.
+*   **Select Tools:** Finalize the toolset and equip each persona appropriately.
 
-### 4. Parallel Subagent Dispatch (Execution)
-*   **Invoke Subagents:** Use the `invoke_subagent` tool to launch the specialized subagents simultaneously.
+### Stage 4: Parallel Subagent Dispatch (Execution)
+Before executing this stage, read `references/focused-research.md`.
+*   **Invoke Subagents:** Use the `invoke_subagent` tool to launch specialized subagents simultaneously.
 *   **Provide Instructions:** Pass the generated personas and their specific tasks and tools as prompts to the subagents.
-*   **Enforce Process and Standards:** Instruct the subagents to follow the [`focused-research`](./sub-skills/focused-research_SKILL.md) sub-skill to conduct their research. This sub-skill guarantees they natively inline citations (e.g., Markdown links) within their analytical findings and report back using a structured JSON schema.
+*   **Enforce Protocol:** Instruct every subagent to strictly follow the protocol outlined in `focused-research.md` to ensure they natively inline citations and report back using the correct structured JSON schema (which is found in `references/evidence_schema.md`).
 
-### 5. Structured Synthesis & Conclusiveness Check
+### Stage 5: Structured Synthesis & Conclusiveness Check
 *   **Collect Outputs:** Wait for all dispatched subagents to complete their tasks and report back.
-*   **Parse Structured Data:** Extract the findings, certainty levels, open questions, and cited sources from the subagents' JSON reports.
-*   **Synthesize & Verify:** Combine the findings into a comprehensive research report. Ensure all claims are backed by inlined evidence.
+*   **Parse Structured Data:** Extract findings, certainty levels, open questions, and cited sources from the subagents' JSON reports.
+*   **Synthesize & Verify:** Combine the findings into a comprehensive research report. Ensure all claims are backed by inlined evidence (never invent information!).
 *   **Evaluate Conclusiveness:** Determine if the research yielded a single definitive answer, or if it uncovered competing hypotheses / multiple viable solutions.
     *   *If Conclusive:* Deliver the final synthesized report to the user.
-    *   *If Competing Options Exist:* Format a comparative **Decision Matrix** outlining the trade-offs of each option. Pause the workflow and present actionable next steps to the user:
-        1.  **Iterate & Deepen:** Offer to spin up a new, narrower set of subagents to specifically research the differences between the competing options.
-        2.  **Transition to Testing/POC:** Suggest handing off the findings to a different skill (e.g., a POC generator or empirical evaluator) to test the hypotheses.
-        3.  **User Decision:** Ask the user to review the matrix and make a manual decision on which path to take.
-
-## Guidelines
-*   **Sequential but Overlapping:** The steps above must be followed in sequence.
-*   **Modularity:** Rely on your sub-skills (`generate-persona`, `discover-tools`, etc.) for specialized tasks.
-*   **Parallelism:** Maximize efficiency by dispatching subagents in parallel for independent research tasks.
-*   **Verifiability:** Never invent information. All synthesized findings must trace back to the structured evidence provided by the subagents.
-    * If you cannot verify it, do not write it. Instead, add it to the open questions list - and consider if you need to dispatch additional subagents to investigate further.    
+    *   *If Competing Options Exist:* Format a comparative **Decision Matrix** outlining trade-offs. Offer next steps (e.g., spin up narrower subagents, or ask the user to decide).
